@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browse Menu | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="brand"><span class="logo-icon">🍴</span>Foodie<span class="go">Go</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="menu.html" class="active">Menu</a>
+    <a href="offers.html">Offers</a>
+    <a href="track-order.html">Track Order</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="cart.html" class="icon-btn" title="Cart">🛒<span class="cart-badge">0</span></a>
+    <a href="login.html" id="nav-account-link" class="icon-btn" title="Account">👤</a>
+  </div>
+</nav>
+
+<div class="browse-layout">
+  <aside class="sidebar">
+    <h4>Categories</h4>
+    <div id="catList">
+      <div class="cat-item active" data-cat="all">🍽 &nbsp; All</div>
+    </div>
+  </aside>
+
+  <main class="browse-main">
+    <div class="browse-main-header">
+      <h2 id="mainTitle">All Restaurants</h2>
+      <div class="search-box">
+        <span>🔍</span>
+        <input type="text" id="searchInput" placeholder="Search for restaurants or dishes...">
+      </div>
+    </div>
+
+    <h3 style="margin:16px 0;font-size:16px;">Restaurants</h3>
+    <div class="cards-grid" id="restaurantsGrid"></div>
+
+    <h3 style="margin:34px 0 16px;font-size:16px;">Dishes</h3>
+    <div class="cards-grid" id="itemsGrid"></div>
+  </main>
+</div>
+
+<footer>
+  <p>Foodie<span>Go</span> ❤ Fast &bull; Fresh &bull; Reliable</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<script>
+const catIcons = {Pizza:"🍕",Burgers:"🍔",Indian:"🍛",Chinese:"🥡",Healthy:"🥗",Desserts:"🍰",Beverages:"🥤"};
+const urlParams = new URLSearchParams(window.location.search);
+let activeCategory = urlParams.get("category") || "all";
+let activeSearch = urlParams.get("search") || "";
+
+async function loadSidebar() {
+  const cats = await Api.getCategories();
+  const list = document.getElementById("catList");
+  list.innerHTML = `<div class="cat-item ${activeCategory==='all'?'active':''}" data-cat="all">🍽 &nbsp; All</div>` +
+    cats.map(c => `<div class="cat-item ${activeCategory.toLowerCase()===c.name.toLowerCase()?'active':''}" data-cat="${c.name}">${c.icon || catIcons[c.name]} &nbsp; ${c.name}</div>`).join("");
+
+  list.querySelectorAll(".cat-item").forEach(el => {
+    el.addEventListener("click", () => {
+      activeCategory = el.dataset.cat;
+      activeSearch = "";
+      document.getElementById("searchInput").value = "";
+      list.querySelectorAll(".cat-item").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+      document.getElementById("mainTitle").textContent = activeCategory === "all" ? "All Restaurants" : activeCategory;
+      loadData();
+    });
+  });
+}
+
+async function loadData() {
+  const restGrid = document.getElementById("restaurantsGrid");
+  const itemGrid = document.getElementById("itemsGrid");
+  restGrid.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+  itemGrid.innerHTML = "";
+  try {
+    let rests, items;
+    if (activeSearch) {
+      rests = await Api.searchRestaurants(activeSearch);
+      items = await Api.getMenuItems();
+      items = items.filter(i => i.name.toLowerCase().includes(activeSearch.toLowerCase()));
+    } else {
+      rests = await Api.getRestaurants(activeCategory);
+      items = await Api.getMenuItems(activeCategory);
+    }
+
+    restGrid.innerHTML = rests.length ? rests.map(r => `
+      <a class="rest-card" href="restaurant.html?id=${r.id}">
+        <img src="${r.imageUrl}" alt="${r.name}">
+        <div class="body">
+          <h3>${r.name}</h3>
+          <div class="meta">${r.cuisine}</div>
+          <span class="rating-pill">★ ${r.rating} (${r.reviewCount})</span>
+          <div class="meta" style="margin-top:6px;">⏱ ${r.deliveryTime}</div>
+          ${r.freeDelivery ? '<span class="free-del-badge">Free Delivery</span>' : ''}
+        </div>
+      </a>`).join("") : `<p style="color:var(--muted)">No restaurants found.</p>`;
+
+    itemGrid.innerHTML = items.length ? items.map(i => `
+      <div class="item-card">
+        <img src="${i.imageUrl}" alt="${i.name}">
+        <div class="body">
+          <h3>${i.name}</h3>
+          <div class="meta">${i.description || ""}</div>
+          <div class="card-footer">
+            <span class="price-tag">${formatMoney(i.price)}</span>
+            <button class="btn btn-primary btn-sm" onclick="quickAdd(${i.id}, this)">Add</button>
+          </div>
+        </div>
+      </div>`).join("") : `<p style="color:var(--muted)">No dishes found.</p>`;
+  } catch (e) {
+    restGrid.innerHTML = `<p style="color:var(--muted)">Could not load menu. Is the backend running? (${e.message})</p>`;
+  }
+}
+
+async function quickAdd(menuItemId, btn) {
+  if (!isLoggedIn()) { window.location.href = "login.html"; return; }
+  try {
+    await Api.addToCart(menuItemId, 1);
+    btn.textContent = "Added ✓";
+    showToast("Added to cart");
+    refreshNavCartBadge();
+    setTimeout(() => btn.textContent = "Add", 1500);
+  } catch (e) { showToast(e.message); }
+}
+
+document.getElementById("searchInput").addEventListener("input", (e) => {
+  activeSearch = e.target.value;
+  document.getElementById("mainTitle").textContent = activeSearch ? `Results for "${activeSearch}"` : "All Restaurants";
+  clearTimeout(window._searchDebounce);
+  window._searchDebounce = setTimeout(loadData, 350);
+});
+if (activeSearch) document.getElementById("searchInput").value = activeSearch;
+if (activeCategory !== "all") document.getElementById("mainTitle").textContent = activeCategory;
+
+loadSidebar();
+loadData();
+</script>
+</body>
+</html>

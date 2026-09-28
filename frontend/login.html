@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-form-side">
+    <a href="index.html" class="brand" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;margin-bottom:36px;">
+      <span class="logo-icon" style="width:34px;height:34px;border-radius:9px;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">🍴</span>
+      Foodie<span class="go" style="color:var(--orange);">Go</span>
+    </a>
+    <h1>Welcome Back!</h1>
+    <p class="sub">Login to your account to continue</p>
+
+    <form id="loginForm">
+      <div class="field">
+        <label>Email or Mobile Number</label>
+        <input type="text" id="emailOrPhone" placeholder="Enter your email or mobile" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Enter your password" required>
+      </div>
+      <div class="field-row">
+        <label class="checkbox-row"><input type="checkbox"> Remember me</label>
+        <a href="#">Forgot password?</a>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Login</button>
+    </form>
+
+    <p class="auth-footer">Don't have an account? <a href="signup.html">Sign Up</a></p>
+  </div>
+
+  <div class="auth-image-side" style="background-image:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.4)), url('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1000')">
+    <div class="quote">Good Food<br>Good Mood</div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector("button");
+  btn.textContent = "Logging in..."; btn.disabled = true;
+  try {
+    const auth = await Api.login({
+      emailOrPhone: document.getElementById("emailOrPhone").value,
+      password: document.getElementById("password").value
+    });
+    localStorage.setItem("fg_token", auth.token);
+    localStorage.setItem("fg_userId", auth.userId);
+    localStorage.setItem("fg_name", auth.fullName);
+    localStorage.setItem("fg_email", auth.email);
+    window.location.href = "index.html";
+  } catch (err) {
+    alert(err.message);
+    btn.textContent = "Login"; btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

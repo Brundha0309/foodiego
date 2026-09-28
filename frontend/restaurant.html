@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restaurant | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="brand"><span class="logo-icon">🍴</span>Foodie<span class="go">Go</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="menu.html">Menu</a>
+    <a href="offers.html">Offers</a>
+    <a href="track-order.html">Track Order</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="cart.html" class="icon-btn" title="Cart">🛒<span class="cart-badge">0</span></a>
+    <a href="login.html" id="nav-account-link" class="icon-btn" title="Account">👤</a>
+  </div>
+</nav>
+
+<div class="rest-hero" id="restHero">
+  <p style="color:var(--muted);">Loading restaurant...</p>
+</div>
+
+<div class="menu-tabs">
+  <span class="active">Menu</span>
+  <span>Reviews</span>
+  <span>About</span>
+</div>
+
+<div class="menu-list">
+  <h3 class="recommend-title">Recommended</h3>
+  <div id="recommendedList"></div>
+  <h3 class="recommend-title">Full Menu</h3>
+  <div id="fullMenuList"></div>
+</div>
+
+<footer>
+  <p>Foodie<span>Go</span> ❤ Fast &bull; Fresh &bull; Reliable</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<script>
+const restId = new URLSearchParams(window.location.search).get("id");
+let cartMap = {}; // menuItemId -> cartItemId (so we can update quantity)
+
+function menuRowHtml(item) {
+  return `
+    <div class="menu-row" id="row-${item.id}">
+      <div class="info">
+        <h4><span class="veg-dot"></span>${item.name}</h4>
+        <div class="price">${formatMoney(item.price)}</div>
+        <p class="desc">${item.description || ""}</p>
+      </div>
+      <div>
+        <img src="${item.imageUrl}" alt="${item.name}">
+        <div class="add-btn-wrap" id="btnwrap-${item.id}">
+          <button class="add-btn" onclick="addItem(${item.id})">Add</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderStepper(itemId, cartItemId, qty) {
+  const wrap = document.getElementById(`btnwrap-${itemId}`);
+  wrap.innerHTML = `
+    <div class="qty-stepper">
+      <button onclick="changeQty(${itemId}, ${cartItemId}, ${qty - 1})">−</button>
+      <span>${qty}</span>
+      <button onclick="changeQty(${itemId}, ${cartItemId}, ${qty + 1})">+</button>
+    </div>`;
+}
+
+async function addItem(menuItemId) {
+  if (!isLoggedIn()) { window.location.href = "login.html"; return; }
+  try {
+    const cartItem = await Api.addToCart(menuItemId, 1);
+    cartMap[menuItemId] = cartItem.id;
+    renderStepper(menuItemId, cartItem.id, cartItem.quantity);
+    refreshNavCartBadge();
+    showToast("Added to cart");
+  } catch (e) { showToast(e.message); }
+}
+
+async function changeQty(menuItemId, cartItemId, newQty) {
+  try {
+    if (newQty <= 0) {
+      await Api.removeCartItem(cartItemId);
+      delete cartMap[menuItemId];
+      document.getElementById(`btnwrap-${menuItemId}`).innerHTML = `<button class="add-btn" onclick="addItem(${menuItemId})">Add</button>`;
+    } else {
+      await Api.updateCartItem(cartItemId, newQty);
+      renderStepper(menuItemId, cartItemId, newQty);
+    }
+    refreshNavCartBadge();
+  } catch (e) { showToast(e.message); }
+}
+
+async function loadExistingCart() {
+  if (!isLoggedIn()) return;
+  try {
+    const cart = await Api.getCart();
+    cart.forEach(ci => { cartMap[ci.menuItem.id] = ci.id; });
+    cart.forEach(ci => {
+      if (document.getElementById(`btnwrap-${ci.menuItem.id}`)) {
+        renderStepper(ci.menuItem.id, ci.id, ci.quantity);
+      }
+    });
+  } catch (e) { /* ignore */ }
+}
+
+async function load() {
+  if (!restId) {
+    document.getElementById("restHero").innerHTML = "<p>No restaurant selected.</p>";
+    return;
+  }
+  try {
+    const r = await Api.getRestaurant(restId);
+    document.getElementById("restHero").innerHTML = `
+      <img src="${r.imageUrl}" alt="${r.name}">
+      <div class="rest-hero-info">
+        <h1>${r.name}</h1>
+        <div class="meta-row">
+          <span class="rating-pill">★ ${r.rating} (${r.reviewCount} reviews)</span>
+          <span>🍽 ${r.cuisine}</span>
+          <span>⏱ ${r.deliveryTime}</span>
+        </div>
+        ${r.freeDelivery ? '<span class="free-del-badge">Free Delivery</span>' : ''}
+      </div>`;
+    document.title = r.name + " | FoodieGo";
+
+    const items = await Api.getRestaurantMenu(restId);
+    const recommended = items.filter(i => i.recommended);
+    const rest = items;
+    document.getElementById("recommendedList").innerHTML = recommended.length
+      ? recommended.map(menuRowHtml).join("")
+      : `<p style="color:var(--muted);padding:10px 0;">No recommended items yet.</p>`;
+    document.getElementById("fullMenuList").innerHTML = rest.map(menuRowHtml).join("");
+
+    loadExistingCart();
+  } catch (e) {
+    document.getElementById("restHero").innerHTML = `<p style="color:var(--muted)">Could not load restaurant. (${e.message})</p>`;
+  }
+}
+load();
+</script>
+</body>
+</html>

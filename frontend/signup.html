@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Up | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-form-side">
+    <a href="index.html" class="brand" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;margin-bottom:36px;">
+      <span class="logo-icon" style="width:34px;height:34px;border-radius:9px;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">🍴</span>
+      Foodie<span class="go" style="color:var(--orange);">Go</span>
+    </a>
+    <h1>Create Your Account</h1>
+    <p class="sub">Join us for a better food experience</p>
+
+    <form id="signupForm">
+      <div class="field">
+        <label>Full Name</label>
+        <input type="text" id="fullName" placeholder="Enter your full name" required>
+      </div>
+      <div class="field">
+        <label>Email or Mobile Number</label>
+        <input type="text" id="email" placeholder="Enter your email or mobile" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Create a password" minlength="6" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:6px;">Sign Up</button>
+    </form>
+
+    <p class="auth-footer">Already have an account? <a href="login.html">Login</a></p>
+  </div>
+
+  <div class="auth-image-side" style="background-image:linear-gradient(rgba(255,90,44,.15),rgba(0,0,0,.35)), url('https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1000')">
+    <div class="quote">Food Brings<br>People Together</div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+document.getElementById("signupForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector("button");
+  btn.textContent = "Creating account..."; btn.disabled = true;
+  const emailVal = document.getElementById("email").value;
+  try {
+    const auth = await Api.signup({
+      fullName: document.getElementById("fullName").value,
+      email: emailVal,
+      phone: emailVal,
+      password: document.getElementById("password").value
+    });
+    localStorage.setItem("fg_token", auth.token);
+    localStorage.setItem("fg_userId", auth.userId);
+    localStorage.setItem("fg_name", auth.fullName);
+    localStorage.setItem("fg_email", auth.email);
+    window.location.href = "index.html";
+  } catch (err) {
+    alert(err.message);
+    btn.textContent = "Sign Up"; btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

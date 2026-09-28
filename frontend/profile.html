@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Profile | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="brand"><span class="logo-icon">🍴</span>Foodie<span class="go">Go</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="menu.html">Menu</a>
+    <a href="offers.html">Offers</a>
+    <a href="track-order.html">Track Order</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="cart.html" class="icon-btn" title="Cart">🛒<span class="cart-badge">0</span></a>
+    <a href="login.html" id="nav-account-link" class="icon-btn" title="Account">👤</a>
+  </div>
+</nav>
+
+<div class="profile-layout">
+  <aside class="profile-side">
+    <div class="avatar-big" id="avatarBig">U</div>
+    <h3 id="sideName">My Profile</h3>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px;" id="sideEmail"></p>
+    <div class="profile-nav-item active" data-tab="profile">👤 My Profile</div>
+    <div class="profile-nav-item" data-tab="orders">📦 My Orders</div>
+    <div class="profile-nav-item" data-tab="addresses">📍 Addresses</div>
+    <div class="profile-nav-item" data-tab="offers">🏷 Offers & Coupons</div>
+    <div class="profile-nav-item" onclick="logout()">🚪 Logout</div>
+  </aside>
+
+  <main>
+    <section id="tab-profile" class="profile-tab">
+      <div class="profile-card">
+        <h3>My Profile</h3>
+        <form id="profileForm">
+          <div class="field"><label>Full Name</label><input type="text" id="fullName"></div>
+          <div class="field"><label>Email</label><input type="text" id="email" disabled></div>
+          <div class="field"><label>Phone</label><input type="text" id="phone"></div>
+          <button class="btn btn-primary" type="submit">Save Changes</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="tab-orders" class="profile-tab" style="display:none;">
+      <div class="profile-card">
+        <h3>My Orders</h3>
+        <div id="ordersList"></div>
+      </div>
+    </section>
+
+    <section id="tab-addresses" class="profile-tab" style="display:none;">
+      <div class="profile-card">
+        <h3>Saved Addresses</h3>
+        <div id="addressesList"></div>
+        <button class="btn btn-dark" style="margin-top:14px;" onclick="document.getElementById('newAddrForm').style.display='block'">+ Add New Address</button>
+        <form id="newAddrForm" style="display:none;margin-top:18px;">
+          <div class="field"><label>Label (Home/Work)</label><input type="text" id="addrLabel" placeholder="Home"></div>
+          <div class="field"><label>Address</label><input type="text" id="addrLine" placeholder="123, Green Park Street" required></div>
+          <div class="field"><label>City</label><input type="text" id="addrCity"></div>
+          <div class="field"><label>State</label><input type="text" id="addrState"></div>
+          <div class="field"><label>Pincode</label><input type="text" id="addrPincode"></div>
+          <button class="btn btn-primary" type="submit">Save Address</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="tab-offers" class="profile-tab" style="display:none;">
+      <div class="profile-card">
+        <h3>Offers & Coupons</h3>
+        <p style="color:var(--muted);font-size:14px;">Visit the <a href="offers.html" style="color:var(--orange);font-weight:600;">Offers page</a> to see all active coupons.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <p>Foodie<span>Go</span> ❤ Fast &bull; Fresh &bull; Reliable</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<script>
+if (!requireLogin()) { /* redirected */ }
+
+document.querySelectorAll(".profile-nav-item[data-tab]").forEach(el => {
+  el.addEventListener("click", () => {
+    document.querySelectorAll(".profile-nav-item[data-tab]").forEach(x => x.classList.remove("active"));
+    el.classList.add("active");
+    document.querySelectorAll(".profile-tab").forEach(t => t.style.display = "none");
+    document.getElementById("tab-" + el.dataset.tab).style.display = "block";
+    if (el.dataset.tab === "orders") loadOrders();
+    if (el.dataset.tab === "addresses") loadAddresses();
+  });
+});
+
+async function loadProfile() {
+  try {
+    const user = await Api.getProfile();
+    document.getElementById("fullName").value = user.fullName;
+    document.getElementById("email").value = user.email;
+    document.getElementById("phone").value = user.phone || "";
+    document.getElementById("sideName").textContent = user.fullName;
+    document.getElementById("sideEmail").textContent = user.email;
+    document.getElementById("avatarBig").textContent = initials(user.fullName);
+  } catch (e) { showToast(e.message); }
+}
+
+document.getElementById("profileForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await Api.updateProfile({ fullName: document.getElementById("fullName").value, phone: document.getElementById("phone").value });
+    showToast("Profile updated");
+    loadProfile();
+  } catch (e) { showToast(e.message); }
+});
+
+async function loadOrders() {
+  const el = document.getElementById("ordersList");
+  el.innerHTML = "Loading...";
+  try {
+    const orders = await Api.getOrderHistory();
+    el.innerHTML = orders.length ? orders.map(o => `
+      <div class="addr-item">
+        <div>
+          <div class="label">Order #FG${String(o.id).padStart(6,'0')} &bull; ${o.status.replace(/_/g,' ')}</div>
+          <div style="color:var(--muted);font-size:13px;">${o.items.length} item(s) &bull; ${formatMoney(o.totalPayable)}</div>
+        </div>
+        <a href="track-order.html?id=${o.id}" style="color:var(--orange);font-weight:600;">Track</a>
+      </div>`).join("") : `<p style="color:var(--muted)">No orders yet.</p>`;
+  } catch (e) { el.innerHTML = `<p style="color:var(--muted)">${e.message}</p>`; }
+}
+
+async function loadAddresses() {
+  const el = document.getElementById("addressesList");
+  el.innerHTML = "Loading...";
+  try {
+    const addresses = await Api.getAddresses();
+    el.innerHTML = addresses.length ? addresses.map(a => `
+      <div class="addr-item">
+        <div>
+          <div class="label">${a.label || "Address"}</div>
+          <div style="color:var(--muted);font-size:13px;">${a.addressLine}, ${a.city || ""}, ${a.state || ""} - ${a.pincode || ""}</div>
+        </div>
+        <span onclick="deleteAddress(${a.id})" style="color:var(--red);cursor:pointer;">Delete</span>
+      </div>`).join("") : `<p style="color:var(--muted)">No saved addresses yet.</p>`;
+  } catch (e) { el.innerHTML = `<p style="color:var(--muted)">${e.message}</p>`; }
+}
+
+async function deleteAddress(id) {
+  try { await Api.deleteAddress(id); loadAddresses(); } catch (e) { showToast(e.message); }
+}
+
+document.getElementById("newAddrForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await Api.addAddress({
+      label: document.getElementById("addrLabel").value || "Home",
+      addressLine: document.getElementById("addrLine").value,
+      city: document.getElementById("addrCity").value,
+      state: document.getElementById("addrState").value,
+      pincode: document.getElementById("addrPincode").value,
+      isDefault: true
+    });
+    showToast("Address added");
+    e.target.reset();
+    e.target.style.display = "none";
+    loadAddresses();
+  } catch (e) { showToast(e.message); }
+});
+
+loadProfile();
+if (window.location.hash === "#addresses") {
+  document.querySelector('[data-tab="addresses"]').click();
+}
+</script>
+</body>
+</html>

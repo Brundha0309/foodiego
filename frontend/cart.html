@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Cart | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="brand"><span class="logo-icon">🍴</span>Foodie<span class="go">Go</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="menu.html">Menu</a>
+    <a href="offers.html">Offers</a>
+    <a href="track-order.html">Track Order</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="cart.html" class="icon-btn" title="Cart">🛒<span class="cart-badge">0</span></a>
+    <a href="login.html" id="nav-account-link" class="icon-btn" title="Account">👤</a>
+  </div>
+</nav>
+
+<div class="cart-layout" id="cartLayout">
+  <div class="cart-items-card">
+    <h2 id="cartTitle">Your Cart</h2>
+    <div id="cartLines"></div>
+    <a href="menu.html" class="continue-link">&larr; Continue Shopping</a>
+  </div>
+
+  <div class="summary-card">
+    <h3>Order Summary</h3>
+    <div class="summary-row"><span>Item Total</span><span id="sumItemTotal">₹0</span></div>
+    <div class="summary-row"><span>Delivery Fee</span><span id="sumDelivery">₹30</span></div>
+    <div class="summary-row"><span>Platform Fee</span><span id="sumPlatform">₹10</span></div>
+    <div class="summary-row total"><span>Total Payable</span><span id="sumTotal">₹0</span></div>
+    <button class="btn btn-primary btn-block" style="margin-top:16px;" onclick="window.location.href='checkout.html'">Proceed to Checkout</button>
+  </div>
+</div>
+
+<footer>
+  <p>Foodie<span>Go</span> ❤ Fast &bull; Fresh &bull; Reliable</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<script>
+if (!requireLogin()) { /* redirected */ }
+
+async function render() {
+  try {
+    const cart = await Api.getCart();
+    const linesEl = document.getElementById("cartLines");
+    document.getElementById("cartTitle").textContent = `Your Cart (${cart.reduce((s,c)=>s+c.quantity,0)} items)`;
+
+    if (!cart.length) {
+      linesEl.innerHTML = `<div class="empty-state"><div class="big-ic">🛒</div><p>Your cart is empty. Browse the menu to add delicious food!</p></div>`;
+    } else {
+      linesEl.innerHTML = cart.map(ci => `
+        <div class="cart-line" id="line-${ci.id}">
+          <img src="${ci.menuItem.imageUrl}" alt="${ci.menuItem.name}">
+          <div class="info">
+            <h4>${ci.menuItem.name}</h4>
+            <div class="price">${formatMoney(ci.menuItem.price)}</div>
+          </div>
+          <div class="stepper">
+            <button onclick="updateQty(${ci.id}, ${ci.quantity - 1})">−</button>
+            <span>${ci.quantity}</span>
+            <button onclick="updateQty(${ci.id}, ${ci.quantity + 1})">+</button>
+          </div>
+          <span class="remove" onclick="removeLine(${ci.id})" title="Remove">🗑</span>
+        </div>`).join("");
+    }
+
+    const itemTotal = cart.reduce((s,c)=>s + c.menuItem.price * c.quantity, 0);
+    const delivery = cart.length ? 30 : 0;
+    const platform = cart.length ? 10 : 0;
+    document.getElementById("sumItemTotal").textContent = formatMoney(itemTotal);
+    document.getElementById("sumDelivery").textContent = formatMoney(delivery);
+    document.getElementById("sumPlatform").textContent = formatMoney(platform);
+    document.getElementById("sumTotal").textContent = formatMoney(itemTotal + delivery + platform);
+
+    refreshNavCartBadge();
+  } catch (e) {
+    document.getElementById("cartLines").innerHTML = `<p style="color:var(--muted)">${e.message}</p>`;
+  }
+}
+
+async function updateQty(cartItemId, qty) {
+  try {
+    if (qty <= 0) { await Api.removeCartItem(cartItemId); }
+    else { await Api.updateCartItem(cartItemId, qty); }
+    render();
+  } catch (e) { showToast(e.message); }
+}
+async function removeLine(cartItemId) {
+  try { await Api.removeCartItem(cartItemId); render(); } catch (e) { showToast(e.message); }
+}
+
+render();
+</script>
+</body>
+</html>

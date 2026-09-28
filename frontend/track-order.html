@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Order | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="brand"><span class="logo-icon">🍴</span>Foodie<span class="go">Go</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="menu.html">Menu</a>
+    <a href="offers.html">Offers</a>
+    <a href="track-order.html" class="active">Track Order</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="cart.html" class="icon-btn" title="Cart">🛒<span class="cart-badge">0</span></a>
+    <a href="login.html" id="nav-account-link" class="icon-btn" title="Account">👤</a>
+  </div>
+</nav>
+
+<div class="tracking-wrap">
+  <div class="tracking-card" id="trackingCard">
+    <p style="color:var(--muted)">Loading order...</p>
+  </div>
+</div>
+
+<footer>
+  <p>Foodie<span>Go</span> ❤ Fast &bull; Fresh &bull; Reliable</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<script>
+if (!requireLogin()) { /* redirected */ }
+const orderId = new URLSearchParams(window.location.search).get("id");
+const steps = ["PLACED","PREPARING","OUT_FOR_DELIVERY","DELIVERED"];
+const stepLabels = ["Order Placed","Preparing","Out for Delivery","Delivered"];
+
+function fmtTime(iso) {
+  if (!iso) return "--:--";
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+async function loadOrder() {
+  const card = document.getElementById("trackingCard");
+  if (!orderId) {
+    try {
+      const history = await Api.getOrderHistory();
+      if (history.length) { window.location.href = `track-order.html?id=${history[0].id}`; return; }
+    } catch (e) {}
+    card.innerHTML = `<div class="empty-state"><div class="big-ic">📦</div><p>No active order found. <a href="menu.html" style="color:var(--orange)">Order something delicious!</a></p></div>`;
+    return;
+  }
+  try {
+    const order = await Api.trackOrder(orderId);
+    const currentIdx = steps.indexOf(order.status);
+    card.innerHTML = `
+      <h2>Track Your Order</h2>
+      <p style="color:var(--muted);font-size:14px;margin-top:6px;">Order ID: #FG${String(order.id).padStart(6,'0')}</p>
+
+      <div class="progress-track">
+        ${steps.map((s, i) => `
+          <div class="progress-step ${i <= currentIdx ? 'done' : ''}">
+            <div class="line"></div>
+            <div class="dot">${i <= currentIdx ? '✓' : i+1}</div>
+            <h5>${stepLabels[i]}</h5>
+            <small>${
+              i === 0 ? fmtTime(order.placedAt) :
+              i === 1 ? fmtTime(order.preparingAt) :
+              i === 2 ? fmtTime(order.outForDeliveryAt) :
+              fmtTime(order.deliveredAt)
+            }</small>
+          </div>`).join("")}
+      </div>
+
+      <div class="map-box">🗺 Live map preview &mdash; delivery partner en route</div>
+
+      <div class="partner-row">
+        <div class="avatar">${initials(order.deliveryPartnerName)}</div>
+        <div>
+          <div style="font-weight:700;">${order.deliveryPartnerName}</div>
+          <div style="font-size:12.5px;color:var(--muted);">${order.deliveryPartnerPhone}</div>
+        </div>
+        <div style="margin-left:auto;font-weight:700;">${formatMoney(order.totalPayable)}</div>
+      </div>
+
+      <div style="margin-top:16px;font-size:13px;color:var(--muted);">
+        ${order.items.length} item(s) &bull; Paid via ${order.paymentMethod}
+      </div>
+    `;
+  } catch (e) {
+    card.innerHTML = `<p style="color:var(--muted)">${e.message}</p>`;
+  }
+}
+loadOrder();
+setInterval(loadOrder, 15000);
+</script>
+</body>
+</html>

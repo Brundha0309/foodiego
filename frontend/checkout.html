@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout | FoodieGo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="brand"><span class="logo-icon">🍴</span>Foodie<span class="go">Go</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="menu.html">Menu</a>
+    <a href="offers.html">Offers</a>
+    <a href="track-order.html">Track Order</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="cart.html" class="icon-btn" title="Cart">🛒<span class="cart-badge">0</span></a>
+    <a href="login.html" id="nav-account-link" class="icon-btn" title="Account">👤</a>
+  </div>
+</nav>
+
+<div class="checkout-layout">
+  <div>
+    <div class="checkout-card">
+      <h3>Delivery Address <a href="profile.html#addresses" style="font-size:12.5px;font-weight:600;color:var(--orange);">Change</a></h3>
+      <div class="address-box" id="addressBox">Loading address...</div>
+    </div>
+
+    <div class="checkout-card">
+      <h3>Payment Method</h3>
+      <div id="paymentOptions">
+        <label class="pay-option"><input type="radio" name="pay" value="UPI" checked> UPI (Google Pay, PhonePe, etc.)</label>
+        <label class="pay-option"><input type="radio" name="pay" value="CARD"> Credit / Debit Card</label>
+        <label class="pay-option"><input type="radio" name="pay" value="NETBANKING"> Net Banking</label>
+        <label class="pay-option"><input type="radio" name="pay" value="COD"> Cash on Delivery</label>
+      </div>
+    </div>
+
+    <div class="checkout-card">
+      <h3>Apply Coupon</h3>
+      <div style="display:flex;gap:10px;">
+        <input type="text" id="couponInput" placeholder="Enter coupon code" style="flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;outline:none;">
+        <button class="btn btn-outline" onclick="applyCoupon()">Apply</button>
+      </div>
+      <p id="couponMsg" style="font-size:12.5px;margin-top:8px;color:var(--green);"></p>
+    </div>
+  </div>
+
+  <div class="summary-card">
+    <h3>Order Summary</h3>
+    <div id="summaryItems" style="margin-bottom:12px;"></div>
+    <div class="summary-row"><span>Item Total</span><span id="sItemTotal">₹0</span></div>
+    <div class="summary-row"><span>Delivery Fee</span><span id="sDelivery">₹30</span></div>
+    <div class="summary-row"><span>Platform Fee</span><span id="sPlatform">₹10</span></div>
+    <div class="summary-row" id="discountRow" style="display:none;"><span>Discount</span><span id="sDiscount">-₹0</span></div>
+    <div class="summary-row total"><span>Total Payable</span><span id="sTotal">₹0</span></div>
+    <button class="btn btn-primary btn-block" style="margin-top:16px;" id="placeOrderBtn" onclick="placeOrder()">Place Order</button>
+  </div>
+</div>
+
+<footer>
+  <p>Foodie<span>Go</span> ❤ Fast &bull; Fresh &bull; Reliable</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<script>
+if (!requireLogin()) { /* redirected */ }
+let selectedAddressId = null;
+let couponCode = null;
+
+async function loadAddress() {
+  const box = document.getElementById("addressBox");
+  try {
+    const addresses = await Api.getAddresses();
+    if (!addresses.length) {
+      box.innerHTML = `<div>
+        <p>No saved address yet.</p>
+        <a href="profile.html#addresses" style="color:var(--orange);font-weight:600;">+ Add a delivery address</a>
+      </div>`;
+      return;
+    }
+    const addr = addresses.find(a => a.isDefault) || addresses[0];
+    selectedAddressId = addr.id;
+    box.innerHTML = `
+      <div>
+        <div class="addr-title">📍 ${addr.label || "Address"}</div>
+        <div>${addr.addressLine}, ${addr.city || ""}, ${addr.state || ""} - ${addr.pincode || ""}</div>
+      </div>`;
+  } catch (e) {
+    box.innerHTML = `<p>${e.message}</p>`;
+  }
+}
+
+async function loadSummary() {
+  try {
+    const cart = await Api.getCart();
+    if (!cart.length) {
+      document.getElementById("summaryItems").innerHTML = `<p style="color:var(--muted);font-size:13px;">Your cart is empty.</p>`;
+      document.getElementById("placeOrderBtn").disabled = true;
+      document.getElementById("placeOrderBtn").style.opacity = 0.6;
+    }
+    document.getElementById("summaryItems").innerHTML = cart.map(ci => `
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;color:var(--muted);">
+        <span>${ci.menuItem.name} x${ci.quantity}</span><span>${formatMoney(ci.menuItem.price * ci.quantity)}</span>
+      </div>`).join("");
+
+    window._itemTotal = cart.reduce((s,c)=>s + c.menuItem.price * c.quantity, 0);
+    recalc();
+  } catch (e) { showToast(e.message); }
+}
+
+function recalc(discount = 0, freeDel = false) {
+  const itemTotal = window._itemTotal || 0;
+  const delivery = freeDel ? 0 : 30;
+  const platform = 10;
+  document.getElementById("sItemTotal").textContent = formatMoney(itemTotal);
+  document.getElementById("sDelivery").textContent = formatMoney(delivery);
+  document.getElementById("sPlatform").textContent = formatMoney(platform);
+  if (discount > 0) {
+    document.getElementById("discountRow").style.display = "flex";
+    document.getElementById("sDiscount").textContent = "-" + formatMoney(discount);
+  }
+  document.getElementById("sTotal").textContent = formatMoney(Math.max(itemTotal + delivery + platform - discount, 0));
+}
+
+async function applyCoupon() {
+  const code = document.getElementById("couponInput").value.trim();
+  if (!code) return;
+  try {
+    const coupons = await Api.getCoupons();
+    const c = coupons.find(x => x.code.toLowerCase() === code.toLowerCase());
+    if (!c) { document.getElementById("couponMsg").style.color = "var(--red)"; document.getElementById("couponMsg").textContent = "Invalid coupon code."; return; }
+    if (window._itemTotal < c.minOrderValue) {
+      document.getElementById("couponMsg").style.color = "var(--red)";
+      document.getElementById("couponMsg").textContent = `Minimum order ${formatMoney(c.minOrderValue)} required.`;
+      return;
+    }
+    couponCode = c.code;
+    let discount = 0, freeDel = false;
+    if (c.discountType === "PERCENT") discount = window._itemTotal * (c.discountValue/100);
+    else if (c.discountType === "FLAT") discount = c.discountValue;
+    else if (c.discountType === "FREE_DELIVERY") freeDel = true;
+    recalc(discount, freeDel);
+    document.getElementById("couponMsg").style.color = "var(--green)";
+    document.getElementById("couponMsg").textContent = `"${c.code}" applied successfully!`;
+  } catch (e) { showToast(e.message); }
+}
+
+async function placeOrder() {
+  const payment = document.querySelector('input[name="pay"]:checked').value;
+  const btn = document.getElementById("placeOrderBtn");
+  btn.textContent = "Placing order..."; btn.disabled = true;
+  try {
+    const order = await Api.checkout({ addressId: selectedAddressId, paymentMethod: payment, couponCode });
+    window.location.href = `track-order.html?id=${order.id}`;
+  } catch (e) {
+    showToast(e.message);
+    btn.textContent = "Place Order"; btn.disabled = false;
+  }
+}
+
+loadAddress();
+loadSummary();
+</script>
+</body>
+</html>
